@@ -1,10 +1,14 @@
 import dotenv from "dotenv";
 import fs from "fs";
+import { marked } from "marked";
+import { markedTerminal } from "marked-terminal";
 import path from "path";
 import readline from "readline";
 import { parseChampSelectSession } from "./championData.js";
 import ChatGPTClient from "./chatgptClient.js";
 import LeagueClient from "./leagueClient.js";
+
+marked.use(markedTerminal());
 
 dotenv.config();
 
@@ -48,13 +52,11 @@ class LeagueGPTApp {
     try {
       const summoner = await this.leagueClient.getCurrentSummoner();
       this.currentSummonerId = summoner.summonerId;
-      console.log(`✓ Logged in as: ${summoner.displayName}`);
     } catch (error) {
       console.error("❌ Failed to get summoner info:", error.message);
       process.exit(1);
     }
 
-    console.log("");
     console.log("✓ Ready! Waiting for champion select...");
     console.log("💡 Press 'R' anytime to manually request AI recommendation");
     console.log("");
@@ -203,7 +205,7 @@ class LeagueGPTApp {
       const recommendation = await this.chatgptClient.getChampionRecommendation(
         parsedData
       );
-      console.log(recommendation);
+      console.log(marked(recommendation));
       console.log("─".repeat(60));
 
       this.queryCounter++;
@@ -246,46 +248,50 @@ class LeagueGPTApp {
     const filename = `query-${String(this.queryCounter).padStart(
       2,
       "0"
-    )}-${queryReason.toLowerCase().replace(" ", "-")}.txt`;
+    )}-${queryReason.toLowerCase().replace(" ", "-")}.md`;
     const filepath = path.join(this.currentSessionDir, filename);
 
     let content = "";
-    content += `=== CHAMPION SELECT RECOMMENDATION ===\n`;
-    content += `Timestamp: ${new Date().toLocaleString()}\n`;
-    content += `Query Type: ${queryReason}\n`;
-    content += `Phase: ${parsedData.phase}\n\n`;
+    content += `# Champion Select Recommendation\n\n`;
+    content += `**Timestamp:** ${new Date().toLocaleString()}  \n`;
+    content += `**Query Type:** ${queryReason}  \n`;
+    content += `**Phase:** ${parsedData.phase}\n\n`;
 
     if (parsedData.myRole) {
-      content += `Your Role: ${parsedData.myRole}\n\n`;
+      content += `**Your Role:** ${parsedData.myRole}\n\n`;
     }
 
+    content += `---\n\n`;
+
     if (parsedData.myTeam.length > 0) {
-      content += `Allied Team:\n`;
+      content += `## 👥 Allied Team\n\n`;
       parsedData.myTeam.forEach((champ) => {
-        const marker = champ.isMe ? " (YOU)" : "";
-        content += `  • ${champ.name} - ${champ.position}${marker}\n`;
+        const marker = champ.isMe ? " **(YOU)**" : "";
+        content += `- **${champ.name}** - ${champ.position}${marker}\n`;
       });
       content += `\n`;
     }
 
     if (parsedData.enemyTeam.length > 0) {
-      content += `Enemy Team:\n`;
+      content += `## ⚔️ Enemy Team\n\n`;
       parsedData.enemyTeam.forEach((champ) => {
-        content += `  • ${champ.name} - ${champ.position}\n`;
+        content += `- **${champ.name}** - ${champ.position}\n`;
       });
       content += `\n`;
     }
 
     if (parsedData.bannedChampions.length > 0) {
-      content += `Banned Champions:\n`;
-      const banNames = parsedData.bannedChampions.map((c) => c.name).join(", ");
-      content += `  ${banNames}\n\n`;
+      content += `## 🚫 Banned Champions\n\n`;
+      const banNames = parsedData.bannedChampions
+        .map((c) => `**${c.name}**`)
+        .join(", ");
+      content += `${banNames}\n\n`;
     }
 
-    content += `=== AI RECOMMENDATION ===\n\n`;
+    content += `---\n\n`;
+    content += `## 🤖 AI Recommendation\n\n`;
     content += recommendation;
-    content += `\n\n`;
-    content += `=== END ===\n`;
+    content += `\n`;
 
     fs.writeFileSync(filepath, content, "utf8");
   }
