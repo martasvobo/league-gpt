@@ -147,6 +147,49 @@ class LeagueClient {
     await poll();
     return setInterval(poll, interval);
   }
+
+  async getReadyCheck() {
+    try {
+      const readyCheck = await this.request("/lol-matchmaking/v1/ready-check");
+      return readyCheck;
+    } catch (error) {
+      if (error.message.includes("404")) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async acceptReadyCheck() {
+    try {
+      await this.request("/lol-matchmaking/v1/ready-check/accept", "POST");
+      return true;
+    } catch (error) {
+      console.error("Failed to accept ready check:", error.message);
+      return false;
+    }
+  }
+
+  async pollReadyCheck(callback, interval = 1000) {
+    let previousState = null;
+
+    const poll = async () => {
+      try {
+        const readyCheck = await this.getReadyCheck();
+        const currentState = JSON.stringify(readyCheck);
+
+        if (currentState !== previousState) {
+          previousState = currentState;
+          await callback(readyCheck);
+        }
+      } catch (error) {
+        console.error("Error polling ready check:", error.message);
+      }
+    };
+
+    await poll();
+    return setInterval(poll, interval);
+  }
 }
 
 export default LeagueClient;

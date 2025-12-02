@@ -29,7 +29,7 @@ class ChatGPTClient {
               content: prompt,
             },
           ],
-          reasoning_effort: "none",
+          //reasoning_effort: "none",
         },
         {
           headers: {
@@ -99,14 +99,15 @@ class ChatGPTClient {
     }
 
     prompt +=
-      "Based on the team compositions above, recommend the top 3-5 champions I should pick. Consider:\n";
+      "Based on the team compositions above, recommend the top 3 champions I should pick. Consider:\n";
     prompt += "1. Synergy with my team composition\n";
     prompt += "2. Countering enemy champions\n";
-    prompt += "3. Strong meta picks for the current patch\n";
-    prompt += "4. Win conditions and team fight dynamics\n\n";
+    prompt += "3. Win conditions and team fight dynamics\n\n";
     prompt += "Provide a brief explanation for each recommendation.\n";
     prompt +=
       "At the end of your response, list only the recommended champion names in a comma-separated format prefixed by 'Recommended Picks:'.\n";
+    prompt +=
+      "If I have already picked a champion and my role is jungle, tell me whether I should path from top to bot or from bot to top based on the current team compositions and enemy picks.\n";
     return prompt;
   }
 }

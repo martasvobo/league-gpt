@@ -23,12 +23,15 @@ class LeagueGPTApp {
     this.chatgptClient = null;
     this.currentSummonerId = null;
     this.pollInterval = null;
+    this.readyCheckPollInterval = null;
     this.lastRecommendation = null;
     this.isProcessing = false;
     this.manualQueryRequested = false;
     this.lastSession = null;
     this.currentSessionDir = null;
     this.queryCounter = 0;
+    this.readyCheckTimer = null;
+    this.readyCheckStartTime = null;
   }
 
   async initialize() {
@@ -59,6 +62,9 @@ class LeagueGPTApp {
 
     console.log("✓ Ready! Waiting for champion select...");
     console.log("💡 Press 'R' anytime to manually request AI recommendation");
+    console.log(
+      "🎯 Auto-accept enabled: Queues will be accepted after 5 seconds"
+    );
     console.log("");
   }
 
@@ -80,6 +86,12 @@ class LeagueGPTApp {
         if (this.pollInterval) {
           clearInterval(this.pollInterval);
         }
+        if (this.readyCheckPollInterval) {
+          clearInterval(this.readyCheckPollInterval);
+        }
+        if (this.readyCheckTimer) {
+          clearTimeout(this.readyCheckTimer);
+        }
         process.exit(0);
       }
     });
@@ -89,13 +101,71 @@ class LeagueGPTApp {
       2000
     );
 
+    this.readyCheckPollInterval = await this.leagueClient.pollReadyCheck(
+      async (readyCheck) => await this.onReadyCheckUpdate(readyCheck),
+      1000
+    );
+
     process.on("SIGINT", () => {
       console.log("\n\nShutting down...");
       if (this.pollInterval) {
         clearInterval(this.pollInterval);
       }
+      if (this.readyCheckPollInterval) {
+        clearInterval(this.readyCheckPollInterval);
+      }
+      if (this.readyCheckTimer) {
+        clearTimeout(this.readyCheckTimer);
+      }
       process.exit(0);
     });
+  }
+
+  async onReadyCheckUpdate(readyCheck) {
+    if (!readyCheck) {
+      if (this.readyCheckTimer) {
+        clearTimeout(this.readyCheckTimer);
+        this.readyCheckTimer = null;
+        this.readyCheckStartTime = null;
+      }
+      return;
+    }
+
+    if (
+      readyCheck.state === "InProgress" &&
+      readyCheck.playerResponse === "None"
+    ) {
+      if (!this.readyCheckStartTime) {
+        this.readyCheckStartTime = Date.now();
+        console.log("   (Ready check detected)");
+
+        this.readyCheckTimer = setTimeout(async () => {
+          const accepted = await this.leagueClient.acceptReadyCheck();
+          if (accepted) {
+            console.log("✅ Match accepted successfully!");
+          } else {
+            console.log("❌ Failed to accept match");
+          }
+          this.readyCheckStartTime = null;
+          this.readyCheckTimer = null;
+        }, 5000);
+      }
+    } else if (readyCheck.playerResponse === "Accepted") {
+      if (this.readyCheckTimer) {
+        clearTimeout(this.readyCheckTimer);
+        this.readyCheckTimer = null;
+      }
+      if (this.readyCheckStartTime) {
+        console.log("✅ Match already accepted");
+        this.readyCheckStartTime = null;
+      }
+    } else if (readyCheck.state !== "InProgress") {
+      if (this.readyCheckTimer) {
+        clearTimeout(this.readyCheckTimer);
+        this.readyCheckTimer = null;
+        this.readyCheckStartTime = null;
+      }
+    }
   }
 
   async onChampSelectUpdate(session, isManualQuery = false) {
@@ -181,14 +251,18 @@ class LeagueGPTApp {
         console.log("\n👥 Allied Team:");
         parsedData.myTeam.forEach((champ) => {
           const marker = champ.isMe ? " (YOU)" : "";
-          console.log(`   • ${champ.name} - ${champ.position}${marker}`);
+          const status = champ.isHovered ? " [HOVERING]" : "";
+          console.log(
+            `   • ${champ.name} - ${champ.position}${marker}${status}`
+          );
         });
       }
 
       if (parsedData.enemyTeam.length > 0) {
         console.log("\n⚔️  Enemy Team:");
         parsedData.enemyTeam.forEach((champ) => {
-          console.log(`   • ${champ.name} - ${champ.position}`);
+          const status = champ.isHovered ? " [HOVERING]" : "";
+          console.log(`   • ${champ.name} - ${champ.position}${status}`);
         });
       }
 
@@ -202,8 +276,17 @@ class LeagueGPTApp {
 
       console.log("\n🤖 Getting AI recommendation...\n");
       console.log("─".repeat(60));
+
+      // Filter out own hovered champion from AI input to avoid confusion
+      const aiData = {
+        ...parsedData,
+        myTeam: parsedData.myTeam.filter(
+          (champ) => !(champ.isMe && champ.isHovered)
+        ),
+      };
+
       const recommendation = await this.chatgptClient.getChampionRecommendation(
-        parsedData
+        aiData
       );
       console.log(marked(recommendation));
       console.log("─".repeat(60));
@@ -232,7 +315,9 @@ class LeagueGPTApp {
           if (
             action.actorCellId === myCell &&
             !action.completed &&
-            action.isInProgress
+            action.isInProgress &&
+            action.type === "pick" &&
+            action.championId === 0
           ) {
             return true;
           }
@@ -267,7 +352,8 @@ class LeagueGPTApp {
       content += `## 👥 Allied Team\n\n`;
       parsedData.myTeam.forEach((champ) => {
         const marker = champ.isMe ? " **(YOU)**" : "";
-        content += `- **${champ.name}** - ${champ.position}${marker}\n`;
+        const status = champ.isHovered ? " *(hovering, not locked)*" : "";
+        content += `- **${champ.name}** - ${champ.position}${marker}${status}\n`;
       });
       content += `\n`;
     }
@@ -275,7 +361,8 @@ class LeagueGPTApp {
     if (parsedData.enemyTeam.length > 0) {
       content += `## ⚔️ Enemy Team\n\n`;
       parsedData.enemyTeam.forEach((champ) => {
-        content += `- **${champ.name}** - ${champ.position}\n`;
+        const status = champ.isHovered ? " *(hovering, not locked)*" : "";
+        content += `- **${champ.name}** - ${champ.position}${status}\n`;
       });
       content += `\n`;
     }

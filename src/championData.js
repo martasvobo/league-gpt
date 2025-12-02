@@ -166,6 +166,10 @@ export const CHAMPION_MAP = {
   950: "Naafiri",
   233: "Briar",
   910: "Aurora",
+  901: "Smolder (scaling ad, true damage, a bit aoe ADC)",
+  804: "Yunara (dps aoe adc champion)",
+  904: "Zaheen (AD bruiser toplaner with revive upon 12 stacks and death passive)",
+  800: "Mel (AP scaling mage a bit long range with ult that executes targets)",
 };
 
 export function getChampionName(championId) {
@@ -189,22 +193,47 @@ export function parseChampSelectSession(session, currentSummonerId) {
   });
 
   session.myTeam?.forEach((player) => {
-    if (player.championId > 0) {
+    const championId = player.championId;
+    const hoveredChampionId = player.championPickIntent;
+
+    if (championId > 0) {
       myTeam.push({
-        championId: player.championId,
-        name: getChampionName(player.championId),
+        championId: championId,
+        name: getChampionName(championId),
         position: player.assignedPosition || "Unknown",
         isMe: player.cellId === myCell,
+        isLocked: true,
+      });
+    } else if (hoveredChampionId > 0) {
+      myTeam.push({
+        championId: hoveredChampionId,
+        name: getChampionName(hoveredChampionId),
+        position: player.assignedPosition || "Unknown",
+        isMe: player.cellId === myCell,
+        isLocked: false,
+        isHovered: true,
       });
     }
   });
 
   session.theirTeam?.forEach((player) => {
-    if (player.championId > 0) {
+    const championId = player.championId;
+    const hoveredChampionId = player.championPickIntent;
+
+    if (championId > 0) {
       enemyTeam.push({
-        championId: player.championId,
-        name: getChampionName(player.championId),
+        championId: championId,
+        name: getChampionName(championId),
         position: player.assignedPosition || "Unknown",
+        isLocked: true,
+      });
+    } else if (hoveredChampionId > 0) {
+      enemyTeam.push({
+        championId: hoveredChampionId,
+        name: getChampionName(hoveredChampionId),
+        position: player.assignedPosition || "Unknown",
+        isLocked: false,
+        isHovered: true,
       });
     }
   });
