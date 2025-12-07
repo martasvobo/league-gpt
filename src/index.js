@@ -188,10 +188,19 @@ class LeagueGPTApp {
     this.lastSession = session;
 
     if (!this.currentSessionDir) {
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/:/g, "-")
-        .replace(/\..+/, "");
+      const now = new Date();
+      const timestamp =
+        now.getFullYear() +
+        "-" +
+        String(now.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(now.getDate()).padStart(2, "0") +
+        "T" +
+        String(now.getHours()).padStart(2, "0") +
+        "-" +
+        String(now.getMinutes()).padStart(2, "0") +
+        "-" +
+        String(now.getSeconds()).padStart(2, "0");
       this.currentSessionDir = path.join("sessions", timestamp);
       fs.mkdirSync(this.currentSessionDir, { recursive: true });
     }
@@ -250,6 +259,10 @@ class LeagueGPTApp {
       if (parsedData.myTeam.length > 0) {
         console.log("\n👥 Allied Team:");
         parsedData.myTeam.forEach((champ) => {
+          // Don't show user's own hovered champion in console
+          if (champ.isMe && champ.isHovered) {
+            return;
+          }
           const marker = champ.isMe ? " (YOU)" : "";
           const status = champ.isHovered ? " [HOVERING]" : "";
           console.log(

@@ -165,11 +165,13 @@ export const CHAMPION_MAP = {
   910: "Hwei",
   950: "Naafiri",
   233: "Briar",
-  910: "Aurora",
+  910: "Hwei (AP scaling mage)",
+  893: "Aurora (midlane mage with dashes and slows, kinda like ahri, a lot of zone control as well)",
   901: "Smolder (scaling ad, true damage, a bit aoe ADC)",
   804: "Yunara (dps aoe adc champion)",
   904: "Zaheen (AD bruiser toplaner with revive upon 12 stacks and death passive)",
   800: "Mel (AP scaling mage a bit long range with ult that executes targets)",
+  799: "Ambessa (toplane bruiser with a dash on every ability, her ult has backline access by teleporting to a target far away but its a skillshot)",
 };
 
 export function getChampionName(championId) {
@@ -185,10 +187,13 @@ export function parseChampSelectSession(session, currentSummonerId) {
   let myRole = null;
   let myCell = null;
 
+  let myTeamSide = null;
+
   session.myTeam?.forEach((player) => {
     if (player.summonerId === currentSummonerId) {
       myCell = player.cellId;
       myRole = player.assignedPosition || null;
+      myTeamSide = player.team;
     }
   });
 
@@ -255,11 +260,24 @@ export function parseChampSelectSession(session, currentSummonerId) {
   const banPhase = phase === "BAN_PICK" || phase.includes("BAN");
   const pickPhase = phase.includes("PICK") || phase === "FINALIZATION";
 
+  // Determine side name (100 = Blue, 200 = Red)
+  let mySide = "Unknown";
+  if (myTeamSide === 100) {
+    mySide = "Blue";
+  } else if (myTeamSide === 200) {
+    mySide = "Red";
+  }
+
+  // Find if player has locked in a champion
+  const myChampion = myTeam.find((champ) => champ.isMe && champ.isLocked);
+
   return {
     myTeam,
     enemyTeam,
     bannedChampions,
     myRole,
+    mySide,
+    myChampion: myChampion || null,
     banPhase,
     pickPhase,
     phase,

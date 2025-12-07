@@ -62,12 +62,18 @@ class ChatGPTClient {
   }
 
   buildPrompt(data) {
-    const { myTeam, enemyTeam, myRole } = data;
+    const { myTeam, enemyTeam, myRole, mySide, myChampion } = data;
 
     let prompt = "# League of Legends Champion Select Analysis\n\n";
 
     prompt += "## Pick Phase\n";
-    prompt += `My role: ${myRole || "Not specified"}\n\n`;
+    prompt += `My role: ${myRole || "Not specified"}\n`;
+    prompt += `My side: ${mySide || "Unknown"} side\n`;
+
+    if (myChampion) {
+      prompt += `My champion: ${myChampion.name}\n`;
+    }
+    prompt += "\n";
 
     if (myTeam && myTeam.length > 0) {
       prompt += "## Allied Team:\n";
@@ -98,16 +104,44 @@ class ChatGPTClient {
       prompt += "\n";
     }
 
-    prompt +=
-      "Based on the team compositions above, recommend the top 3 champions I should pick. Consider:\n";
-    prompt += "1. Synergy with my team composition\n";
-    prompt += "2. Countering enemy champions\n";
-    prompt += "3. Win conditions and team fight dynamics\n\n";
-    prompt += "Provide a brief explanation for each recommendation.\n";
-    prompt +=
-      "At the end of your response, list only the recommended champion names in a comma-separated format prefixed by 'Recommended Picks:'.\n";
-    prompt +=
-      "If I have already picked a champion and my role is jungle, tell me whether I should path from top to bot or from bot to top based on the current team compositions and enemy picks.\n";
+    // Different prompts based on whether champion is picked
+    if (!myChampion) {
+      // Not picked yet - only show champion recommendations
+      prompt +=
+        "Based on the team compositions above, recommend 5 champions I should pick for my role. Consider:\n";
+      prompt += "1. Synergy with my team composition\n";
+      prompt += "2. Countering enemy champions\n";
+      prompt += "3. Win conditions and team fight dynamics\n\n";
+      prompt +=
+        "Format your response as a numbered list with brief explanations:\n";
+      prompt += "1. [Champion Name]: [Brief reason]\n";
+      prompt += "2. [Champion Name]: [Brief reason]\n";
+      prompt += "etc.\n\n";
+      prompt +=
+        "Keep it concise and focused only on champion recommendations.\n";
+    } else {
+      // Champion already picked - only show gameplan
+      prompt +=
+        "I have already picked my champion. Provide a detailed gameplan:\n\n";
+      if (myRole?.toLowerCase().includes("jungle")) {
+        prompt +=
+          "2. **Early game strategy**: Should I full clear, gank early, invade, or dive? Specify levels and timings.\n";
+        prompt +=
+          "3. **Priority targets**: Which lanes should I focus on and why?\n";
+        prompt +=
+          "5. **Win condition**: What should I focus on to carry the game?\n\n";
+      } else {
+        prompt +=
+          "1. **Laning phase**: How should I play the lane? Aggressive, passive, farm-focused?\n";
+        prompt +=
+          "4. **Team fighting**: My role in team fights and how to position.\n";
+        prompt +=
+          "5. **Win condition**: What should I focus on to carry the game?\n\n";
+      }
+      prompt +=
+        "Keep it concise and actionable. NO champion recommendations since I already picked.\n";
+    }
+
     return prompt;
   }
 }
